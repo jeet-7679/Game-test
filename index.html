@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlagsBattle — Version 1</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#090b12;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+header{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:#111522;border-bottom:1px solid #242b3d}
+h1{font-size:22px;margin:0}.sub{color:#8f9bb3;font-size:12px;margin-top:3px}
+button{border:0;border-radius:10px;padding:11px 16px;background:#2f7cff;color:#fff;font-weight:700;cursor:pointer}button:hover{filter:brightness(1.12)}
+main{height:calc(100vh - 64px);display:grid;grid-template-columns:1fr 280px;gap:12px;padding:12px}
+#gameWrap{position:relative;min-width:0;min-height:0;background:#05070b;border:1px solid #242b3d;border-radius:14px;overflow:hidden}
+canvas{width:100%;height:100%;display:block}
+#status{position:absolute;left:14px;top:12px;padding:7px 10px;border-radius:8px;background:#101522cc;font-size:12px;color:#c8d1e4}
+aside{background:#111522;border:1px solid #242b3d;border-radius:14px;padding:14px;overflow:auto}
+h2{font-size:15px;margin:2px 0 12px}.row{display:flex;align-items:center;gap:9px;padding:9px 8px;border-radius:9px;background:#0b0e16;margin-bottom:7px}.flag{font-size:25px}.name{flex:1}.score{font-weight:800;color:#7fb0ff}.hint{font-size:12px;color:#8f9bb3;line-height:1.5;margin-top:14px}
+.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#0008}.card{background:#111827;border:1px solid #36415b;padding:30px;border-radius:18px;text-align:center;min-width:260px}.winner{font-size:54px}.winname{font-size:25px;font-weight:800;margin:8px}
+@media(max-width:750px){main{grid-template-columns:1fr;height:auto;overflow:auto}.gameWrap{height:62vh}aside{height:300px}}
+</style>
+</head>
+<body>
+<header><div><h1>🏳️ FlagsBattle</h1><div class="sub">Interactive Live Flag Battle — Version 1</div></div><button id="restart">New Battle</button></header>
+<main>
+<section id="gameWrap"><canvas id="game"></canvas><div id="status">Battle starting…</div><div class="overlay" id="overlay"><div class="card"><div class="winner" id="winnerFlag">🏆</div><div class="winname" id="winnerName">Winner</div><button id="again">Play Again</button></div></div></section>
+<aside><h2>🏆 Scoreboard</h2><div id="scores"></div><div class="hint">Version 1 controls:<br>• Flags bounce using physics<br>• Click/tap a flag to give it +1 support<br>• Last flag inside the arena wins<br>• No YouTube connection yet — this version is the standalone game prototype.</div></aside>
+</main>
+<script>
+const teams=[
+["🇮🇳","India"],["🇧🇷","Brazil"],["🇯🇵","Japan"],["🇺🇸","USA"],
+["🇩🇪","Germany"],["🇫🇷","France"],["🇬🇧","UK"],["🇮🇹","Italy"]
+];
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d"),wrap=document.getElementById("gameWrap");
+let W,H,dpr,border=34,balls=[],running=false,last=0,raf,score={};
+function resize(){dpr=devicePixelRatio||1;W=wrap.clientWidth;H=wrap.clientHeight;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);border=Math.max(28,Math.min(48,W*.045))}
+function reset(){
+ balls=[]; score={}; teams.forEach((t,i)=>score[t[1]]=0);
+ const cx=W/2,cy=H/2, R=Math.min(W,H)*.28;
+ teams.forEach((t,i)=>{
+  const a=i*Math.PI*2/teams.length;
+  balls.push({flag:t[0],name:t[1],x:cx+Math.cos(a)*R,y:cy+Math.sin(a)*R,r:30,
+    vx:(Math.random()-.5)*170,vy:(Math.random()-.5)*170});
+ });
+ document.getElementById("overlay").style.display="none";running=true;last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);updateScores();
+}
+function updateScores(){
+ document.getElementById("scores").innerHTML=balls.slice().sort((a,b)=>(score[b.name]||0)-(score[a.name]||0)).map(b=>`<div class="row"><span class="flag">${b.flag}</span><span class="name">${b.name}</span><span class="score">${score[b.name]||0}</span></div>`).join("");
+}
+function collide(a,b){
+ let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),min=a.r+b.r;
+ if(d===0)return;
+ if(d<min){let nx=dx/d,ny=dy/d,over=min-d;a.x-=nx*over/2;a.y-=ny*over/2;b.x+=nx*over/2;b.y+=ny*over/2;
+  let rvx=b.vx-a.vx,rvy=b.vy-a.vy,rel=rvx*nx+rvy*ny;if(rel<0)return;
+  let impulse=rel; a.vx+=nx*impulse;a.vy+=ny*impulse;b.vx-=nx*impulse;b.vy-=ny*impulse;
+ }
+}
+function loop(now){
+ if(!running)return;let dt=Math.min(.033,(now-last)/1000);last=now;
+ for(const b of balls){b.x+=b.vx*dt;b.y+=b.vy*dt;b.vx*=.999;b.vy*=.999;
+  if(b.x-b.r<border){b.x=border+b.r;b.vx=Math.abs(b.vx)}
+  if(b.x+b.r>W-border){b.x=W-border-b.r;b.vx=-Math.abs(b.vx)}
+  if(b.y-b.r<border){b.y=border+b.r;b.vy=Math.abs(b.vy)}
+  if(b.y+b.r>H-border){b.y=H-border-b.r;b.vy=-Math.abs(b.vy)}
+ }
+ for(let i=0;i<balls.length;i++)for(let j=i+1;j<balls.length;j++)collide(balls[i],balls[j]);
+ draw();document.getElementById("status").textContent=`${balls.length} flags remaining • Tap a flag to support it`;
+ if(balls.length===1){running=false;document.getElementById("winnerFlag").textContent=balls[0].flag;document.getElementById("winnerName").textContent=balls[0].name+" wins!";document.getElementById("overlay").style.display="flex"}
+ else raf=requestAnimationFrame(loop);
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);ctx.fillStyle="#070a10";ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle="#2b3550";ctx.lineWidth=4;ctx.strokeRect(border,border,W-2*border,H-2*border);
+ for(const b of balls){ctx.beginPath();ctx.arc(b.x,b.y,b.r+4,0,Math.PI*2);ctx.fillStyle="#0d1320";ctx.fill();ctx.font=`${b.r*1.5}px serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(b.flag,b.x,b.y);ctx.font="bold 11px Arial";ctx.fillStyle="#fff";ctx.fillText(`${score[b.name]||0}`,b.x,b.y+b.r+15)}
+}
+canvas.addEventListener("pointerdown",e=>{if(!running)return;const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;for(const b of balls)if(Math.hypot(x-b.x,y-b.y)<b.r+12){score[b.name]++;b.vx+=(Math.random()-.5)*80;b.vy+=(Math.random()-.5)*80;updateScores();break}});
+document.getElementById("restart").onclick=reset;document.getElementById("again").onclick=reset;
+window.addEventListener("resize",()=>{resize();if(!running)draw()});resize();reset();
+</script>
+</body>
+</html>
